@@ -224,6 +224,59 @@ func renderPreviewPage(data previewPageData) ([]byte, error) {
       font-size: 12px;
       color: rgba(238,242,255,0.66);
     }
+    .inspector {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid rgba(255,255,255,0.10);
+    }
+    .inspector-title {
+      margin: 0 0 6px;
+      font-size: 13px;
+      font-weight: 700;
+      color: #e0f2fe;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .inspector-summary {
+      margin: 0;
+      font-size: 13px;
+      line-height: 1.5;
+      color: rgba(238,242,255,0.85);
+    }
+    .tag-list {
+      margin-top: 10px;
+      display: grid;
+      gap: 8px;
+      max-height: 300px;
+      overflow: auto;
+      padding-right: 4px;
+    }
+    .tag-row {
+      display: grid;
+      gap: 4px;
+      padding: 8px 10px;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+    .tag-key {
+      font-size: 11px;
+      color: #93c5fd;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+    .tag-value {
+      font-size: 13px;
+      color: #f8fafc;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+    .tag-empty {
+      font-size: 13px;
+      color: rgba(238,242,255,0.65);
+    }
   </style>
 </head>
 <body>
@@ -233,6 +286,11 @@ func renderPreviewPage(data previewPageData) ([]byte, error) {
     <p class="meta" id="coords"></p>
     <p class="meta">Raw tile: <a id="raw-link" href="#">open /current/{z}/{x}/{y}.mvt</a></p>
     <p class="meta">TileJSON: <code id="tilejson-link"></code></p>
+    <div class="inspector">
+      <div class="inspector-title">Building inspector</div>
+      <p class="inspector-summary" id="feature-summary">Click a building footprint to inspect its OSM tags.</p>
+      <div class="tag-list" id="feature-tags"></div>
+    </div>
     <div class="note">This page renders the vector tile with a generic preview style. The raw <code>.mvt</code> link still downloads the binary tile.</div>
   </div>
 
@@ -283,6 +341,8 @@ func renderPreviewPage(data previewPageData) ([]byte, error) {
         "#22d3ee",
         "#fb7185"
       ];
+      const interactiveLayerIds = [];
+      const buildingLayerIds = [];
 
       const layers = [{
         id: "preview-background",
@@ -296,8 +356,15 @@ func renderPreviewPage(data previewPageData) ([]byte, error) {
         tilejson.vector_layers.forEach(function (layer, index) {
           const color = palette[index % palette.length];
           const layerId = String(layer.id || ("layer-" + index)).replace(/[^a-zA-Z0-9_-]/g, "-");
+          const fillId = layerId + "-fill";
+          const lineId = layerId + "-line";
+          const pointId = layerId + "-point";
+          interactiveLayerIds.push(fillId, lineId, pointId);
+          if (/building/i.test(String(layer.id || ""))) {
+            buildingLayerIds.push(fillId, lineId, pointId);
+          }
           layers.push({
-            id: layerId + "-fill",
+            id: fillId,
             type: "fill",
             source: "basemap",
             "source-layer": layer.id,
@@ -308,7 +375,7 @@ func renderPreviewPage(data previewPageData) ([]byte, error) {
             }
           });
           layers.push({
-            id: layerId + "-line",
+            id: lineId,
             type: "line",
             source: "basemap",
             "source-layer": layer.id,
@@ -319,7 +386,7 @@ func renderPreviewPage(data previewPageData) ([]byte, error) {
             }
           });
           layers.push({
-            id: layerId + "-point",
+            id: pointId,
             type: "circle",
             source: "basemap",
             "source-layer": layer.id,
@@ -332,6 +399,64 @@ func renderPreviewPage(data previewPageData) ([]byte, error) {
             }
           });
         });
+      }
+
+      function escapeHtml(value) {
+        return String(value)
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll("\"", "&quot;")
+          .replaceAll("'", "&#39;");
+      }
+
+      function formatValue(value) {
+        if (value === null || value === undefined) {
+          return "";
+        }
+        if (Array.isArray(value)) {
+          return "[" + value.map(formatValue).join(", ") + "]";
+        }
+        if (typeof value === "object") {
+          try {
+            return JSON.stringify(value);
+          } catch (err) {
+            return String(value);
+          }
+        }
+        return String(value);
+      }
+
+      function showNoFeature(message) {
+        document.getElementById("feature-summary").innerHTML = escapeHtml(message);
+        document.getElementById("feature-tags").innerHTML = '<div class="tag-empty">' + escapeHtml(message) + '</div>';
+      }
+
+      function renderFeature(feature) {
+        const summary = document.getElementById("feature-summary");
+        const tags = document.getElementById("feature-tags");
+        const properties = feature && feature.properties ? feature.properties : {};
+        const entries = Object.entries(properties).sort(function (a, b) {
+          return a[0].localeCompare(b[0]);
+        });
+        const geometryType = feature && feature.geometry && feature.geometry.type ? feature.geometry.type : "unknown";
+        const sourceLayer = feature && feature.sourceLayer ? feature.sourceLayer : "unknown";
+        const layerId = feature && feature.layer && feature.layer.id ? feature.layer.id : "unknown";
+        const featureId = feature && feature.id !== undefined && feature.id !== null ? String(feature.id) : "n/a";
+
+        summary.innerHTML = "Layer <code>" + escapeHtml(layerId) + "</code>, source-layer <code>" + escapeHtml(sourceLayer) + "</code>, geometry <code>" + escapeHtml(geometryType) + "</code>, feature id <code>" + escapeHtml(featureId) + "</code>.";
+
+        if (!entries.length) {
+          tags.innerHTML = '<div class="tag-empty">No properties found on this feature.</div>';
+          return;
+        }
+
+        tags.innerHTML = entries.map(function (entry) {
+          return '<div class="tag-row">' +
+            '<div class="tag-key">' + escapeHtml(entry[0]) + '</div>' +
+            '<div class="tag-value">' + escapeHtml(formatValue(entry[1])) + '</div>' +
+            '</div>';
+        }).join("");
       }
 
       const sources = {
@@ -404,6 +529,47 @@ func renderPreviewPage(data previewPageData) ([]byte, error) {
       });
 
       map.on("load", function () {
+        const activeLayerIds = buildingLayerIds.length ? buildingLayerIds : interactiveLayerIds;
+
+        function pickFeature(point) {
+          if (activeLayerIds.length) {
+            const preferredLayers = buildingLayerIds.length ? buildingLayerIds : activeLayerIds;
+            const preferred = map.queryRenderedFeatures(point, { layers: preferredLayers });
+            if (preferred.length) {
+              return preferred[0];
+            }
+          }
+
+          const fallback = map.queryRenderedFeatures(point);
+          return fallback.find(function (feature) {
+            return feature && feature.properties && Object.keys(feature.properties).length > 0;
+          }) || fallback[0] || null;
+        }
+
+        activeLayerIds.forEach(function (layerId) {
+          map.on("mouseenter", layerId, function () {
+            map.getCanvas().style.cursor = "pointer";
+          });
+          map.on("mouseleave", layerId, function () {
+            map.getCanvas().style.cursor = "";
+          });
+        });
+
+        map.on("click", function (event) {
+          const feature = pickFeature(event.point);
+          if (!feature) {
+            showNoFeature("No building feature found here. Click on a building footprint to inspect its OSM tags.");
+            return;
+          }
+          renderFeature(feature);
+        });
+
+        if (cfg.tile && cfg.tile.has) {
+          showNoFeature("Click a building footprint to inspect its OSM tags.");
+        } else {
+          showNoFeature("Showing the current basemap. Add /preview/{z}/{x}/{y} to focus a specific tile.");
+        }
+
         if (!cfg.tile || !cfg.tile.has) {
           return;
         }

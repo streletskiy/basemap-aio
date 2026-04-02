@@ -166,6 +166,7 @@ http://localhost:8080/preview/12/2048/1365?key=secret-token
 ```
 
 The preview page uses the current TileJSON, renders the vector layers with a generic style, and shows the raw `.mvt` link for the focused tile.
+Click a building footprint on the preview page to inspect the OSM tags encoded in that tile feature.
 
 ## Notes
 
