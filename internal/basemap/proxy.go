@@ -90,6 +90,9 @@ func RunProxy(ctx context.Context, cfg ProxyConfig) error {
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte("ok\n"))
 			return
+		case r.URL.Path == "/favicon.ico":
+			w.WriteHeader(http.StatusNoContent)
+			return
 		case r.URL.Path == "/status":
 			writeStatus(w, cfg)
 			return
@@ -100,6 +103,11 @@ func RunProxy(ctx context.Context, cfg ProxyConfig) error {
 
 		if err := authorize(r, cfg.APIKey); err != nil {
 			http.Error(w, err.Error(), http.StatusUnauthorized)
+			return
+		}
+
+		if strings.HasPrefix(r.URL.Path, "/preview") {
+			servePreviewPage(w, r, cfg)
 			return
 		}
 

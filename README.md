@@ -137,6 +137,36 @@ For raw PMTiles-aware clients, use:
 
 The proxy also exposes the current versioned path, but only the latest archive is kept on disk, so older versioned URLs are not retained after the next refresh.
 
+## Browser preview
+
+The raw tile URL:
+
+```text
+http://localhost:8080/current/{z}/{x}/{y}.mvt
+```
+
+returns a binary vector tile. Browsers will download it, not render it directly.
+
+For a visual preview in the browser, open:
+
+```text
+http://localhost:8080/preview/{z}/{x}/{y}
+```
+
+Example:
+
+```text
+http://localhost:8080/preview/12/2048/1365
+```
+
+If `API_KEY` is set, add `?key=YOUR_KEY` to the preview URL as well:
+
+```text
+http://localhost:8080/preview/12/2048/1365?key=secret-token
+```
+
+The preview page uses the current TileJSON, renders the vector layers with a generic style, and shows the raw `.mvt` link for the focused tile.
+
 ## Notes
 
 - First download can be large and needs enough free disk for one temporary copy during the update.
