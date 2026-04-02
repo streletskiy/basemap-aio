@@ -1,0 +1,21 @@
+# Local runtime data and generated state.
+data/
+
+# Local environment overrides.
+.env
+.env.local
+
+# Go build/test outputs.
+bin/
+*.test
+coverage.out
+
+# Editor and OS clutter.
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+*.tmp
+*.log

@@ -1,0 +1,20 @@
+# Keep the build context small and avoid shipping runtime data.
+data/
+
+# Local environment overrides.
+.env
+.env.local
+
+# VCS and editor clutter.
+.git
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Temporary files and logs.
+*.swp
+*.swo
+*.tmp
+*.log
+coverage.out
