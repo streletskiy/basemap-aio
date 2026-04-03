@@ -37,7 +37,7 @@ func TestRewriteTileJSONAddsAPIKeyAndCurrentAlias(t *testing.T) {
 		t.Fatalf("write manifest: %v", err)
 	}
 
-	body := []byte(`{"tiles":["http://localhost:8080/20260401/{z}/{x}/{y}.mvt"]}`)
+	body := []byte(`{"tiles":["http://localhost:8080/20260401/{z}/{x}/{y}.mvt"],"attribution":"<a href=\"https://protomaps.com\">Protomaps</a> &copy; <a href=\"https://openstreetmap.org\">OpenStreetMap</a>"}`)
 	publicBase, err := url.Parse("http://192.168.1.10:8080")
 	if err != nil {
 		t.Fatalf("parse public base: %v", err)
@@ -52,9 +52,17 @@ func TestRewriteTileJSONAddsAPIKeyAndCurrentAlias(t *testing.T) {
 		t.Fatalf("unexpected output: %s", out)
 	}
 
+	if strings.Contains(strings.ToLower(string(out)), "protomaps") {
+		t.Fatalf("unexpected protomaps attribution: %s", out)
+	}
+
 	var doc map[string]any
 	if err := json.Unmarshal(out, &doc); err != nil {
 		t.Fatalf("json unmarshal: %v", err)
+	}
+
+	if got := doc["attribution"]; got != osmAttribution {
+		t.Fatalf("unexpected attribution: %#v", got)
 	}
 }
 

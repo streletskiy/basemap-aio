@@ -18,6 +18,7 @@ import (
 )
 
 const requestHostHeader = "X-Basemap-Request-Host"
+const osmAttribution = "&copy; <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap</a>"
 
 func ProxyConfigFromEnv() ProxyConfig {
 	return ProxyConfig{
@@ -375,6 +376,7 @@ func rewriteTileJSON(body []byte, originalPath, dataDir, apiKey, publicHost stri
 	}
 
 	doc["tiles"] = tiles
+	doc["attribution"] = osmAttribution
 
 	out, err := json.Marshal(doc)
 	if err != nil {

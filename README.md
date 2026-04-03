@@ -142,6 +142,8 @@ For raw PMTiles-aware clients, use:
 
 The proxy also exposes the current versioned path, but only the latest archive is kept on disk, so older versioned URLs are not retained after the next refresh.
 
+TileJSON attribution is normalized to OpenStreetMap only.
+
 ## Browser preview
 
 The raw tile URL:
