@@ -2,6 +2,7 @@ package basemap
 
 import (
 	"encoding/json"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -37,12 +38,17 @@ func TestRewriteTileJSONAddsAPIKeyAndCurrentAlias(t *testing.T) {
 	}
 
 	body := []byte(`{"tiles":["http://localhost:8080/20260401/{z}/{x}/{y}.mvt"]}`)
-	out, err := rewriteTileJSON(body, "/current.json", cfg.DataDir, "secret")
+	publicBase, err := url.Parse("http://192.168.1.10:8080")
+	if err != nil {
+		t.Fatalf("parse public base: %v", err)
+	}
+
+	out, err := rewriteTileJSON(body, "/current.json", cfg.DataDir, "secret", publicBase.Host)
 	if err != nil {
 		t.Fatalf("rewriteTileJSON: %v", err)
 	}
 
-	if !strings.Contains(string(out), "/current/{z}/{x}/{y}.mvt?key=secret") {
+	if !strings.Contains(string(out), "http://192.168.1.10:8080/current/{z}/{x}/{y}.mvt?key=secret") {
 		t.Fatalf("unexpected output: %s", out)
 	}
 

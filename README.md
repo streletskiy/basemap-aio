@@ -45,6 +45,9 @@ http://localhost:8080/status
 http://localhost:8080/current.json
 http://localhost:8080/current.pmtiles
 ```
+
+If you open the stack from another machine, replace `localhost` with the host's LAN IP or DNS name. The proxy rewrites TileJSON tile URLs to the host used in the request, so the same compose stack works locally and on the network.
+
 ## Manual update
 
 Run a one-shot refresh against the same shared volume:
@@ -79,6 +82,8 @@ Other useful env vars:
 If you want a different cadence, change that value and restart the stack.
 
 By default the archives are stored in `./data` on the host and mounted to `/data` in the containers.
+
+`PUBLIC_URL` is the base URL embedded by `pmtiles serve` before the proxy rewrites returned TileJSON tile URLs to the public host used by the client. If you put the stack behind TLS, another reverse proxy, or a CDN, set it to the external URL you want browsers to see.
 
 ## API key mode
 

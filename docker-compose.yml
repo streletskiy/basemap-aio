@@ -30,7 +30,7 @@ services:
       - serve
       - /data/archives
       - --port=8081
-      - --public-url=${PUBLIC_URL:-http://localhost:8080}
+      - --public-url=${PUBLIC_URL:-http://proxy:8080}
       - "--cors=*"
     volumes:
       - type: bind
@@ -52,7 +52,7 @@ services:
       LISTEN: :8080
       UPSTREAM_URL: http://tiles:8081
     ports:
-      - "8080:8080"
+      - "0.0.0.0:8080:8080"
     volumes:
       - type: bind
         source: ${DATA_HOST_DIR:-./data}

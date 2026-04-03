@@ -17,6 +17,8 @@ import (
 	"time"
 )
 
+const requestHostHeader = "X-Basemap-Request-Host"
+
 func ProxyConfigFromEnv() ProxyConfig {
 	return ProxyConfig{
 		DataDir:     envOr("DATA_DIR", "/data"),
@@ -69,7 +71,8 @@ func RunProxy(ctx context.Context, cfg ProxyConfig) error {
 		_ = resp.Body.Close()
 
 		originalPath := resp.Request.Header.Get("X-Basemap-Original-Path")
-		rewritten, err := rewriteTileJSON(body, originalPath, cfg.DataDir, cfg.APIKey)
+		publicHost := resp.Request.Header.Get(requestHostHeader)
+		rewritten, err := rewriteTileJSON(body, originalPath, cfg.DataDir, cfg.APIKey, publicHost)
 		if err != nil {
 			return err
 		}
@@ -126,6 +129,7 @@ func RunProxy(ctx context.Context, cfg ProxyConfig) error {
 		} else if ok {
 			r2 := cloneRequest(r)
 			r2.Header.Set("X-Basemap-Original-Path", r.URL.Path)
+			r2.Header.Set(requestHostHeader, r.Host)
 			r2.URL.Path = targetPath
 			r2.URL.RawQuery = stripKeyQuery(r.URL.RawQuery)
 			proxy.ServeHTTP(w, r2)
@@ -134,6 +138,7 @@ func RunProxy(ctx context.Context, cfg ProxyConfig) error {
 
 		r2 := cloneRequest(r)
 		r2.Header.Set("X-Basemap-Original-Path", r.URL.Path)
+		r2.Header.Set(requestHostHeader, r.Host)
 		r2.URL.RawQuery = stripKeyQuery(r.URL.RawQuery)
 		proxy.ServeHTTP(w, r2)
 	})
@@ -313,7 +318,7 @@ func resolveCurrentAlias(requestPath, dataDir string) (string, bool, error) {
 	return "", false, nil
 }
 
-func rewriteTileJSON(body []byte, originalPath, dataDir, apiKey string) ([]byte, error) {
+func rewriteTileJSON(body []byte, originalPath, dataDir, apiKey, publicHost string) ([]byte, error) {
 	if len(body) == 0 {
 		return body, nil
 	}
@@ -335,15 +340,27 @@ func rewriteTileJSON(body []byte, originalPath, dataDir, apiKey string) ([]byte,
 
 	rewriteAlias := strings.HasPrefix(path.Clean("/"+originalPath), "/"+CurrentAlias)
 	versionPrefix := "/" + tilesetName(manifest.Key)
+	publicHost = strings.TrimSpace(publicHost)
 
 	for i, raw := range tiles {
 		s, ok := raw.(string)
 		if !ok {
 			continue
 		}
-		if rewriteAlias {
-			s = strings.Replace(s, versionPrefix, "/"+CurrentAlias, 1)
+		u, err := url.Parse(s)
+		if err != nil {
+			return nil, fmt.Errorf("parse tile url %q: %w", s, err)
 		}
+		if rewriteAlias {
+			u.Path = strings.Replace(u.Path, versionPrefix, "/"+CurrentAlias, 1)
+		}
+		if publicHost != "" {
+			if u.Scheme == "" {
+				u.Scheme = "http"
+			}
+			u.Host = publicHost
+		}
+		s = formatTileURL(u)
 		if apiKey != "" {
 			keyValue := url.QueryEscape(apiKey)
 			if hasQueryParam(s, "key") {
@@ -364,6 +381,29 @@ func rewriteTileJSON(body []byte, originalPath, dataDir, apiKey string) ([]byte,
 		return nil, err
 	}
 	return out, nil
+}
+
+func formatTileURL(u *url.URL) string {
+	var b strings.Builder
+	if u.Scheme != "" {
+		b.WriteString(u.Scheme)
+		b.WriteString("://")
+	} else if u.Host != "" {
+		b.WriteString("//")
+	}
+	if u.Host != "" {
+		b.WriteString(u.Host)
+	}
+	b.WriteString(u.Path)
+	if u.RawQuery != "" {
+		b.WriteByte('?')
+		b.WriteString(u.RawQuery)
+	}
+	if u.Fragment != "" {
+		b.WriteByte('#')
+		b.WriteString(u.Fragment)
+	}
+	return b.String()
 }
 
 func cloneRequest(r *http.Request) *http.Request {
