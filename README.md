@@ -16,7 +16,7 @@ Compose stack for downloading the latest Protomaps basemap build, keeping only t
   - `/current.json`
   - `/current/{z}/{x}/{y}.mvt`
 - Keeps the latest build updated on a timer.
-- Supports manual refresh with a one-shot command.
+- Supports manual refresh with a one-shot command and resumable downloads via `aria2c`.
 - Prints download progress, speed and ETA to container logs while fetching the archive.
 
 The Protomaps docs say the basemap daily builds are available from `maps.protomaps.com/builds`, and `pmtiles serve` is the supported way to expose ZXY and TileJSON endpoints. This stack uses that model, but adds a small proxy so the current build can move without changing client URLs.
@@ -61,6 +61,10 @@ Force a redownload of the latest build:
 ```bash
 docker compose run --rm updater update --force
 ```
+
+The updater image now uses `aria2c` under the hood. If a download is interrupted, the `.part` and `.aria2` state files under `./data/archives` let the next run continue from the last checkpoint as long as the volume is kept.
+
+Use `--force` when you want to ignore any existing partial download state and start that archive fetch fresh.
 
 ## Scheduled updates
 
@@ -179,4 +183,5 @@ Click a building footprint on the preview page to inspect the OSM tags encoded i
 
 - First download can be large and needs enough free disk for one temporary copy during the update.
 - The stack keeps only the latest archive by default.
+- The updater image includes `aria2c` and uses resumable multi-connection downloads for the archive fetch.
 - The `tiles` service uses `protomaps/go-pmtiles:v1.30.1`. If you want a different server version, change that image tag in `docker-compose.yml`.

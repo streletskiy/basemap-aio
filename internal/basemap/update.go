@@ -114,14 +114,14 @@ func (u *Updater) updateLocked(ctx context.Context, force bool) (Build, error) {
 		if info, err := os.Stat(finalPath); err == nil {
 			switch {
 			case current.Key == latest.Key && info.Size() == latest.Size:
-				_ = os.Remove(tempPath)
+				removeDownloadArtifacts(tempPath)
 				if err := u.writeCurrentManifest(latest); err != nil {
 					return Build{}, err
 				}
 				return latest, nil
 			case current.Key != latest.Key && info.Size() == latest.Size:
 				if err := u.verifyArchive(finalPath, latest); err == nil {
-					_ = os.Remove(tempPath)
+					removeDownloadArtifacts(tempPath)
 					if err := u.writeCurrentManifest(latest); err != nil {
 						return Build{}, err
 					}
@@ -131,7 +131,17 @@ func (u *Updater) updateLocked(ctx context.Context, force bool) (Build, error) {
 					return latest, nil
 				}
 			}
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return Build{}, err
 		}
+
+		if promoted, err := u.restoreCompletedTempArchive(tempPath, finalPath, latest, current); err != nil {
+			return Build{}, err
+		} else if promoted {
+			return latest, nil
+		}
+	} else {
+		removeDownloadArtifacts(tempPath)
 	}
 
 	if err := u.downloadLatest(ctx, latest, tempPath); err != nil {
@@ -139,12 +149,14 @@ func (u *Updater) updateLocked(ctx context.Context, force bool) (Build, error) {
 	}
 
 	if err := u.verifyArchive(tempPath, latest); err != nil {
+		removeDownloadArtifacts(tempPath)
 		return Build{}, err
 	}
 
 	if err := os.Rename(tempPath, finalPath); err != nil {
 		return Build{}, err
 	}
+	defer removeDownloadControl(tempPath)
 
 	if err := u.writeCurrentManifest(latest); err != nil {
 		return Build{}, err
@@ -187,7 +199,7 @@ func (u *Updater) fetchBuilds(ctx context.Context) ([]Build, error) {
 	return builds, nil
 }
 
-func (u *Updater) downloadLatest(ctx context.Context, build Build, tempPath string) (err error) {
+func (u *Updater) downloadLatestHTTP(ctx context.Context, build Build, tempPath string) (err error) {
 	if err := os.MkdirAll(filepath.Dir(tempPath), 0o755); err != nil {
 		return err
 	}
